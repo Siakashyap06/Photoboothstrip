@@ -72,9 +72,11 @@ button{font:inherit;cursor:pointer}
 .toggle button[aria-pressed="true"]{background:#fff;color:#111}
 
 /* curtain side */
-.side{position:relative;border-radius:10px;overflow:hidden;background:#0a0a0a;box-shadow:inset 0 0 0 2px #000}
-.rod{position:absolute;top:10px;left:8px;right:8px;height:6px;border-radius:3px;background:linear-gradient(#eee,#888);z-index:2}
-.curtain{position:absolute;top:12px;left:0;right:0;bottom:84px;z-index:1;transform-origin:top;
+.side{position:relative;border-radius:10px;background:#0a0a0a;box-shadow:inset 0 0 0 2px #000;min-height:420px}
+.chute{position:absolute;left:10px;right:10px;top:10px;height:54px;border-radius:6px;background:linear-gradient(#e2dfd8,#9a968e);display:grid;place-items:center;align-content:center;gap:6px;z-index:4;box-shadow:0 6px 10px -4px #000}
+.chute span{font-weight:800;font-size:11px;letter-spacing:.3em;color:#222}
+.chute .slot{width:140px;max-width:88%;height:8px;border-radius:4px;background:#050505;box-shadow:inset 0 2px 3px #000}
+.curtain{position:absolute;top:70px;left:2px;right:2px;bottom:2px;z-index:1;transform-origin:top;border-radius:0 0 8px 8px;
   background:
     linear-gradient(#0000 85%,#0008),
     repeating-linear-gradient(90deg,#070707 0 9px,#1d1d1f 9px 15px,#0b0b0c 15px 22px,#141415 22px 28px);
@@ -83,25 +85,24 @@ button{font:inherit;cursor:pointer}
 @keyframes sway{50%{transform:skewX(1.2deg)}}
 .booth.shooting .curtain{animation-duration:1.2s}
 .sticker{position:absolute;z-index:2;font-family:'Archivo Black',sans-serif;line-height:1.05;letter-spacing:.02em}
-.s1{top:42%;left:14px;transform:rotate(-7deg);background:var(--yellow);color:#111;padding:8px 10px;font-size:13px;box-shadow:0 4px 8px -2px #000}
-.chute{position:absolute;left:12px;right:12px;bottom:12px;height:62px;border-radius:6px;background:linear-gradient(#d9d6cf,#9a968e);display:grid;place-items:center;align-content:center;gap:7px;z-index:2;box-shadow:0 4px 10px -4px #000}
-.chute span{font-weight:800;font-size:11px;letter-spacing:.3em;color:#222}
-.chute .slot{width:150px;max-width:90%;height:8px;border-radius:4px;background:#050505;box-shadow:inset 0 2px 3px #000}
+.s1{top:58%;left:14px;transform:rotate(-7deg);background:var(--yellow);color:#111;padding:8px 10px;font-size:13px;box-shadow:0 4px 8px -2px #000}
 
-/* the strip feeding out of the slot */
-.tray{position:absolute;top:calc(100% - 26px);right:43px;width:150px;height:0;overflow:hidden;z-index:5;pointer-events:none}
-.tray.open{height:560px;pointer-events:auto}
-.strip{width:150px;padding:7px;background:var(--paper);box-shadow:0 18px 26px -14px rgba(0,0,0,.6);transform:translateY(-100%)}
+/* strip: feeds down out of the top slot over the curtain, then slides out to the right */
+.tray{position:absolute;top:58px;left:calc(50% - 64px);width:128px;height:calc(100% - 64px);overflow:hidden;z-index:3;pointer-events:none;
+  transition:transform 1s cubic-bezier(.3,.8,.3,1.05)}
+.strip{width:128px;padding:6px;background:var(--paper);box-shadow:0 14px 22px -12px rgba(0,0,0,.7);transform:translateY(-100%)}
 .strip img{width:100%;display:block}
 .tray.open .strip{animation:feed 5.5s steps(26,end) forwards}
 @keyframes feed{to{transform:translateY(0)}}
 .strip img.developing{animation:develop 7s ease-out forwards}
 @keyframes develop{0%{filter:brightness(2.6) contrast(.2)}100%{filter:none}}
-@media (max-width:640px){.tray{right:calc(50% - 75px)}}
+.tray.taken{overflow:visible;pointer-events:auto;transform:translateX(250px) rotate(3deg);height:auto;z-index:6}
+.tray.taken .strip{box-shadow:0 26px 40px -16px rgba(0,0,0,.65)}
 
-.booth{transition:margin-bottom 1.2s ease}
-.booth.delivered{margin-bottom:430px}
-.after{display:flex;gap:10px;margin-top:22px;opacity:0;pointer-events:none;transition:opacity .5s}
-.after.ready{opacity:1;pointer-events:auto}
-.after button{border:0;border-radius:3px;padding:10px 16px;background:#111;color:#fff;font-weight:800;letter-spacing:.12em;font-size:12px}
+.after{display:grid;gap:8px;margin-top:16px;opacity:0;pointer-events:none;transition:opacity .5s .6s;transform:rotate(-3deg)}
+.tray.taken .after{opacity:1;pointer-events:auto}
+.after button{border:0;border-radius:3px;padding:10px 12px;background:#111;color:#fff;font-weight:800;letter-spacing:.12em;font-size:12px;white-space:nowrap}
 .after button:hover{background:#ee352e}
+
+/* not enough room on the right: keep the strip in place, buttons below it */
+@media (max-width:1160px){.tray.taken{transform:none}.after{transform:none}}

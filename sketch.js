@@ -91,9 +91,7 @@ function reset(keepRunning) {
   shots = [];
   stripG.clear();
   [...$('frames').children].forEach((f) => f.classList.remove('on'));
-  $('tray').classList.remove('open');
-  $('booth').classList.remove('delivered');
-  $('after').classList.remove('ready');
+  $('tray').classList.remove('open', 'taken');
   $('stripImg').removeAttribute('src');
   if (!keepRunning) { running = false; $('go').disabled = false; $('pose').textContent = 'LOOK HERE ↑'; }
 }
@@ -102,9 +100,8 @@ function deliver() {
   const img = $('stripImg');
   img.src = stripG.elt.toDataURL('image/png');
   img.classList.remove('developing'); void img.offsetWidth; img.classList.add('developing');
-  const t = $('tray'); t.classList.remove('open'); void t.offsetWidth; t.classList.add('open');
-  $('booth').classList.add('delivered');
-  setTimeout(() => $('after').classList.add('ready'), 5600);
+  const t = $('tray'); t.classList.remove('open', 'taken'); void t.offsetWidth; t.classList.add('open');
+  setTimeout(() => t.classList.add('taken'), 5800);
 }
 
 function saveStrip() {
