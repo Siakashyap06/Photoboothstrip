@@ -18,7 +18,7 @@ function setup() {
   const c = createCanvas(CAM_W, CAM_H);
   c.parent('cam');
   pixelDensity(1);
-  capture = createCapture({ video: { width: CAM_W, height: CAM_H }, audio: false }, () => { camReady = true; });
+  capture = createCapture(VIDEO);
   capture.size(CAM_W, CAM_H);
   capture.hide();
   stripG = createGraphics(400, 40 + FRAMES * (CAM_H * 360 / CAM_W + 14) + 70);
@@ -51,7 +51,7 @@ function keyPressed() {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function start() {
-  if (running || !camReady) return;
+  if (running || !(capture && capture.loadedmetadata)) return;
   running = true;
   reset(true);
   const coin = $('go');
