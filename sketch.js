@@ -1,298 +1,242 @@
-// Photobooth Strip — classic GREYSCALE look (no edge/X-ray)
-// Keys: S=start, R=reset, P=save
+// Vintage Photobooth — 4 poses, one strip.
+// Press the red button (or S) to start · R = reset · P = save strip
 
-let capture;
 const FRAMES = 4;
-const INTERVAL_MS = 3000;
+const CAM_W = 480, CAM_H = 360;
+const POSES = ['SMILE!', 'NEW YORK SERIOUS', 'TOURIST MODE', 'BODEGA CAT ENERGY'];
 
-let started = false;
-let shotCount = 0;
-let nextShotAt = 0;
-let shots = [];        // processed frames (greyscale)
-let stripG;            // full-res strip (for saving)
+let capture, camReady = false;
+let shots = [];
+let stripG;
+let running = false;
+let film = 'bw';
 
+const $ = (id) => document.getElementById(id);
+
+// ---------------- p5 ----------------
 function setup() {
-  createCanvas(windowWidth, windowHeight);
-  textFont('monospace');
-
-  capture = createCapture(VIDEO);
-  capture.size(360, 270);
+  const c = createCanvas(CAM_W, CAM_H);
+  c.parent('cam');
+  pixelDensity(1);
+  capture = createCapture({ video: { width: CAM_W, height: CAM_H }, audio: false }, () => { camReady = true; });
+  capture.size(CAM_W, CAM_H);
   capture.hide();
-
-  stripG = createGraphics(360 + 40, 4 * (270 + 16) + 40);
+  stripG = createGraphics(400, 40 + FRAMES * (CAM_H * 360 / CAM_W + 14) + 70);
   stripG.pixelDensity(1);
-}
-
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
+  applyFilmLook();
 }
 
 function draw() {
-  background(18);
-
-  // layout: left preview, right strip (scaled to fit)
-  const leftW = min(440, width * 0.45);
-  const leftX = 16, leftY = 16, leftH = height - 80;
-
-  drawPreviewPanel(leftX, leftY, leftW, leftH);
-  drawStripScaled(leftX + leftW + 16, 16, width - (leftX + leftW + 32), height - 32);
-
-  if (started && shotCount < FRAMES) {
-    const remaining = max(0, nextShotAt - millis());
-    drawCountdownOverPreview(remaining);
-    if (remaining <= 0) {
-      takeShot();
-      shotCount++;
-      if (shotCount < FRAMES) nextShotAt = millis() + INTERVAL_MS;
-      else composeStrip();
-    }
-  }
-
-  // UI
-  fill(200);
-  noStroke();
-  textSize(14);
-  textAlign(LEFT, BOTTOM);
-  text(`Controls: S = Start • R = Reset • P = Save`, 20, height - 20);
-}
-
-function drawPreviewPanel(x, y, pw, ph) {
-  push();
-  translate(x, y);
-  noStroke(); fill(30); rect(0, 0, pw, ph, 14);
-
-  // fit camera preview into panel with margins
-  const m = 20;
-  const scaleFactor = min((pw - 2*m) / capture.width, (ph * 0.75 - 2*m) / capture.height);
-  const w = capture.width * scaleFactor;
-  const h = capture.height * scaleFactor;
-  const px = m, py = m;
-
-  // mirrored preview
-  push();
-  translate(px + w, py);
-  scale(-scaleFactor, scaleFactor);
-  image(capture, 0, 0);
-  pop();
-
-  noFill(); stroke(255, 40); rect(px, py, w, h, 8);
-
-  fill(220); noStroke(); textSize(16); textAlign(LEFT, TOP);
-  const status = !started ? "Ready to shoot"
-    : shotCount < FRAMES ? `Capturing… (${shotCount}/${FRAMES})` : "Done!";
-  text(status, px, py + h + 12);
-  pop();
-}
-
-function drawStripScaled(x, y, aw, ah) {
-  push();
-  translate(x, y);
-
-  const stripW = stripG.width, stripH = stripG.height;
-  const s = min(aw / stripW, ah / stripH, 1.0);
-  const dx = max(0, (aw - stripW * s) / 2);
-  const dy = max(0, (ah - stripH * s) / 2);
-
-  // shadow
-  noStroke(); fill(0, 120);
-  rect(dx + 18 * s, dy + 18 * s, stripW * s, stripH * s, 20 * s);
-
-  // paper
-  fill(245); rect(dx, dy, stripW * s, stripH * s, 20 * s);
-
-  if (shotCount === FRAMES) {
-    push(); translate(dx, dy); scale(s); image(stripG, 0, 0); pop();
-  } else {
-    // partial live preview
-    const pad = 20, gap = 16, w = capture.width, h = capture.height;
-    push(); translate(dx, dy); scale(s);
-    fill(250); noStroke(); rect(0, 0, stripW, stripH, 20);
-    for (let i = 0; i < shots.length; i++) {
-      image(shots[i], pad, pad + i * (h + gap));
-      noFill(); stroke(0, 40); strokeWeight(1.5);
-      rect(pad, pad + i * (h + gap), w, h, 6);
-    }
+  background(10);
+  if (capture && capture.loadedmetadata) {
+    push(); translate(width, 0); scale(-1, 1);
+    image(capture, 0, 0, width, height);
     pop();
+    // soft live vignette + flicker so the preview feels like an old booth
+    noStroke();
+    if (random() < 0.04) { fill(255, 10); rect(0, 0, width, height); }
+  } else {
+    fill(220); textAlign(CENTER, CENTER); textFont('Special Elite'); textSize(18);
+    text('Allow camera access\nto use the booth', width / 2, height / 2);
   }
-  pop();
-}
-
-function drawCountdownOverPreview(msLeft) {
-  // recompute the preview rectangle to overlay countdown neatly
-  const leftX = 16, leftY = 16;
-  const pw = min(440, width * 0.45);
-  const ph = height - 80;
-  const m = 20;
-  const scaleFactor = min((pw - 2*m) / capture.width, (ph * 0.75 - 2*m) / capture.height);
-  const w = capture.width * scaleFactor;
-  const h = capture.height * scaleFactor;
-  const px = leftX + m, py = leftY + m;
-
-  const sLeft = constrain(ceil(msLeft / 1000), 0, 3);
-
-  push();
-  fill(0, 120); noStroke(); rect(px, py, w, h, 8);
-  const t = (msLeft % 1000) / 1000;
-  const ring = map(t, 0, 1, 20, 60);
-  noFill(); stroke(255); strokeWeight(4);
-  circle(px + w / 2, py + h / 2, 160 + ring);
-  noStroke(); fill(255); textAlign(CENTER, CENTER); textSize(64);
-  text(sLeft === 0 ? "★" : sLeft, px + w / 2, py + h / 2);
-  pop();
 }
 
 function keyPressed() {
-  if (key === 'S' || key === 's') {
-    resetBooth();
-    started = true;
-    nextShotAt = millis() + INTERVAL_MS;
-  } else if (key === 'R' || key === 'r') {
-    resetBooth();
-  } else if (key === 'P' || key === 'p') {
-    if (shotCount === FRAMES) {
-      composeStrip();
-      save(stripG, 'photobooth_strip.png');
-    }
-  }
+  if (key === 's' || key === 'S') start();
+  else if (key === 'r' || key === 'R') reset();
+  else if (key === 'p' || key === 'P') saveStrip();
 }
 
-function resetBooth() {
-  started = false;
-  shotCount = 0;
-  nextShotAt = 0;
+// ---------------- flow ----------------
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function start() {
+  if (running || !camReady) return;
+  running = true;
+  reset(true);
+  const coin = $('go');
+  coin.classList.add('pressed'); coin.disabled = true;
+  sfx.coin();
+  await sleep(400);
+  coin.classList.remove('pressed');
+  $('booth').classList.add('shooting');
+
+  for (let i = 0; i < FRAMES; i++) {
+    $('pose').textContent = `POSE ${i + 1} OF ${FRAMES} · ${POSES[i]}`;
+    for (let n = 3; n >= 1; n--) {
+      const el = $('count');
+      el.textContent = n; el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick');
+      sfx.beep(n === 1 ? 880 : 660);
+      await sleep(1000);
+    }
+    takeShot();
+    const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+    sfx.shutter();
+    $('frames').children[i].classList.add('on');
+    await sleep(i < FRAMES - 1 ? 900 : 600);
+  }
+
+  $('pose').textContent = 'DEVELOPING… CHECK THE SLOT →';
+  $('booth').classList.remove('shooting');
+  composeStrip();
+  sfx.whir();
+  await sleep(900);
+  deliver();
+  setTimeout(() => { $('pose').textContent = 'LOOK HERE ↑'; }, 5000);
+  coin.disabled = false;
+  running = false;
+}
+
+function reset(keepRunning) {
   shots = [];
   stripG.clear();
-  background(18);
+  [...$('frames').children].forEach((f) => f.classList.remove('on'));
+  $('tray').classList.remove('open');
+  $('booth').classList.remove('delivered');
+  $('after').classList.remove('ready');
+  $('stripImg').removeAttribute('src');
+  if (!keepRunning) { running = false; $('go').disabled = false; $('pose').textContent = 'LOOK HERE ↑'; }
 }
 
-// --------- Capture & processing (GREYSCALE FILM LOOK) ----------
+function deliver() {
+  const img = $('stripImg');
+  img.src = stripG.elt.toDataURL('image/png');
+  img.classList.remove('developing'); void img.offsetWidth; img.classList.add('developing');
+  const t = $('tray'); t.classList.remove('open'); void t.offsetWidth; t.classList.add('open');
+  $('booth').classList.add('delivered');
+  setTimeout(() => $('after').classList.add('ready'), 5600);
+}
 
+function saveStrip() {
+  if (shots.length === FRAMES) save(stripG, `photobooth_strip_${film}.png`);
+}
+
+// ---------------- capture & processing ----------------
 function takeShot() {
-  // copy & mirror current frame
-  let raw = createImage(capture.width, capture.height);
-  raw.copy(capture, 0, 0, capture.width, capture.height, 0, 0, capture.width, capture.height);
+  let raw = createImage(CAM_W, CAM_H);
+  raw.copy(capture, 0, 0, capture.width, capture.height, 0, 0, CAM_W, CAM_H);
   raw = mirrorImage(raw);
-
-  // Process for a classic photo look
-  let gray = toGray(raw);                      // true greyscale
-  gray = contrastCurve(gray, 1.10, 0.95);      // slight S-curve (contrast + gentle gamma)
-  gray = addGrain(gray, 12);                   // subtle film grain (0..~20 sensible)
-  gray = vignette(gray, 0.35);                 // soft darkening at edges (0..1)
-
-  shots.push(gray);
+  let img = toGray(raw);
+  img = contrastCurve(img, 1.15, 0.95);
+  img = addGrain(img, 14);
+  img = vignette(img, 0.38);
+  if (film === 'sepia') img = sepia(img);
+  shots.push(img);
 }
 
 function composeStrip() {
-  const pad = 20, gap = 16, w = capture.width, h = capture.height;
-
-  stripG.push();
-  stripG.clear();
-
-  // paper
-  stripG.noStroke(); stripG.fill(250);
-  stripG.rect(0, 0, stripG.width, stripG.height, 20);
-
-  // header
-  stripG.fill(0, 70); stripG.textAlign(CENTER, TOP); stripG.textSize(14);
-  stripG.text(`PHOTO STRIP — Greyscale`, stripG.width / 2, 8);
-
-  // frames
+  const g = stripG, pad = 20, gap = 14;
+  const w = g.width - pad * 2, h = w * CAM_H / CAM_W;
+  const paper = film === 'sepia' ? color(246, 236, 214) : color(250, 248, 243);
+  g.push(); g.clear();
+  g.noStroke(); g.fill(paper); g.rect(0, 0, g.width, g.height);
   for (let i = 0; i < shots.length; i++) {
-    stripG.image(shots[i], pad, pad + i * (h + gap));
-    stripG.noFill(); stripG.stroke(0, 40); stripG.strokeWeight(1.5);
-    stripG.rect(pad, pad + i * (h + gap), w, h, 6);
+    const y = pad + i * (h + gap);
+    g.image(shots[i], pad, y, w, h);
+    g.noFill(); g.stroke(0, 50); g.strokeWeight(1); g.rect(pad, y, w, h);
   }
-
-  stripG.pop();
+  // footer stamp
+  const y0 = pad + FRAMES * (h + gap) + 8;
+  g.noStroke(); g.fill(film === 'sepia' ? color(110, 70, 40) : color(40));
+  g.textAlign(CENTER, TOP);
+  g.textFont('Archivo Black'); g.textSize(24); g.text('PHOTOBOOTH', g.width / 2, y0);
+  g.textFont('Special Elite'); g.textSize(13);
+  const d = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+  g.text(`NEW YORK, NY  ·  ${d}`, g.width / 2, y0 + 32);
+  g.pop();
 }
 
-// --------- Image helpers ----------
+// ---------------- film toggle ----------------
+document.querySelectorAll('[data-film]').forEach((b) => b.addEventListener('click', () => {
+  film = b.dataset.film;
+  document.querySelectorAll('[data-film]').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+  applyFilmLook();
+}));
+function applyFilmLook() {
+  const c = document.querySelector('#cam canvas');
+  if (c) c.style.filter = film === 'sepia' ? 'grayscale(1) sepia(.75) contrast(1.1)' : 'grayscale(1) contrast(1.15)';
+}
 
+$('go').addEventListener('click', start);
+$('save').addEventListener('click', saveStrip);
+$('again').addEventListener('click', () => { reset(); start(); });
+
+// ---------------- sound (tiny WebAudio synth) ----------------
+const sfx = (() => {
+  let ctx;
+  const ac = () => (ctx = ctx || new (window.AudioContext || window.webkitAudioContext)());
+  function tone(freq, dur, type = 'square', vol = 0.06, delay = 0) {
+    const a = ac(), o = a.createOscillator(), g = a.createGain(), t = a.currentTime + delay;
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur);
+  }
+  function noise(dur, vol = 0.25, delay = 0) {
+    const a = ac(), n = a.createBufferSource(), b = a.createBuffer(1, a.sampleRate * dur, a.sampleRate);
+    const d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const g = a.createGain(); g.gain.value = vol; n.buffer = b; n.connect(g).connect(a.destination); n.start(a.currentTime + delay);
+  }
+  return {
+    coin: () => { tone(1320, 0.12, 'triangle', 0.08); tone(1760, 0.25, 'triangle', 0.06, 0.08); },
+    beep: (f) => tone(f, 0.12, 'square', 0.04),
+    shutter: () => { noise(0.05, 0.35); noise(0.06, 0.25, 0.09); },
+    whir: () => { for (let i = 0; i < 8; i++) tone(120 + i * 6, 0.12, 'sawtooth', 0.02, i * 0.1); },
+  };
+})();
+
+// ---------------- image helpers ----------------
 function mirrorImage(src) {
-  const w = src.width, h = src.height;
-  let out = createImage(w, h);
+  const w = src.width, h = src.height, out = createImage(w, h);
   src.loadPixels(); out.loadPixels();
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = 4 * (y * w + x);
-      const j = 4 * (y * w + (w - 1 - x));
-      out.pixels[j+0] = src.pixels[i+0];
-      out.pixels[j+1] = src.pixels[i+1];
-      out.pixels[j+2] = src.pixels[i+2];
-      out.pixels[j+3] = src.pixels[i+3];
-    }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = 4 * (y * w + x), j = 4 * (y * w + (w - 1 - x));
+    out.pixels[j] = src.pixels[i]; out.pixels[j + 1] = src.pixels[i + 1]; out.pixels[j + 2] = src.pixels[i + 2]; out.pixels[j + 3] = 255;
   }
-  out.updatePixels();
-  return out;
+  out.updatePixels(); return out;
 }
-
 function toGray(src) {
-  let out = createImage(src.width, src.height);
-  src.loadPixels(); out.loadPixels();
+  const out = createImage(src.width, src.height); src.loadPixels(); out.loadPixels();
   for (let i = 0; i < src.pixels.length; i += 4) {
-    const r = src.pixels[i], g = src.pixels[i+1], b = src.pixels[i+2];
-    const v = floor(0.299*r + 0.587*g + 0.114*b); // luma
-    out.pixels[i] = out.pixels[i+1] = out.pixels[i+2] = v;
-    out.pixels[i+3] = 255;
+    const v = floor(0.299 * src.pixels[i] + 0.587 * src.pixels[i + 1] + 0.114 * src.pixels[i + 2]);
+    out.pixels[i] = out.pixels[i + 1] = out.pixels[i + 2] = v; out.pixels[i + 3] = 255;
   }
-  out.updatePixels();
-  return out;
+  out.updatePixels(); return out;
 }
-
-// Slight S-curve with a bit more pop in mids; contrast>1 increases slope; gamma < 1 brightens
-function contrastCurve(grayImg, contrast = 1.1, gamma = 1.0) {
-  let out = createImage(grayImg.width, grayImg.height);
-  grayImg.loadPixels(); out.loadPixels();
-  for (let i = 0; i < grayImg.pixels.length; i += 4) {
-    let v = grayImg.pixels[i] / 255.0;     // 0..1
-    // center to 0..1 around 0.5, apply contrast, re-center
-    v = 0.5 + (v - 0.5) * contrast;
-    v = constrain(v, 0, 1);
-    // gamma
-    v = pow(v, gamma);
-    const p = floor(v * 255);
-    out.pixels[i] = out.pixels[i+1] = out.pixels[i+2] = p;
-    out.pixels[i+3] = 255;
+function contrastCurve(img, contrast = 1.1, gamma = 1.0) {
+  const out = createImage(img.width, img.height); img.loadPixels(); out.loadPixels();
+  for (let i = 0; i < img.pixels.length; i += 4) {
+    let v = constrain(0.5 + (img.pixels[i] / 255 - 0.5) * contrast, 0, 1);
+    const p = floor(pow(v, gamma) * 255);
+    out.pixels[i] = out.pixels[i + 1] = out.pixels[i + 2] = p; out.pixels[i + 3] = 255;
   }
-  out.updatePixels();
-  return out;
+  out.updatePixels(); return out;
 }
-
-function addGrain(grayImg, amount = 10) {
-  let out = createImage(grayImg.width, grayImg.height);
-  grayImg.loadPixels(); out.loadPixels();
-  for (let i = 0; i < grayImg.pixels.length; i += 4) {
-    const v = grayImg.pixels[i];
-    // uniform noise in [-amount, +amount]
-    const n = (random() * 2 - 1) * amount;
-    const p = floor(constrain(v + n, 0, 255));
-    out.pixels[i] = out.pixels[i+1] = out.pixels[i+2] = p;
-    out.pixels[i+3] = 255;
+function addGrain(img, amount = 10) {
+  const out = createImage(img.width, img.height); img.loadPixels(); out.loadPixels();
+  for (let i = 0; i < img.pixels.length; i += 4) {
+    const p = floor(constrain(img.pixels[i] + (random() * 2 - 1) * amount, 0, 255));
+    out.pixels[i] = out.pixels[i + 1] = out.pixels[i + 2] = p; out.pixels[i + 3] = 255;
   }
-  out.updatePixels();
-  return out;
+  out.updatePixels(); return out;
 }
-
-// Radial darkening at edges for a soft vignette; strength 0..1
-function vignette(grayImg, strength = 0.3) {
-  const w = grayImg.width, h = grayImg.height;
-  const cx = w * 0.5, cy = h * 0.5;
-  const maxR = sqrt(cx*cx + cy*cy);
-  let out = createImage(w, h);
-  grayImg.loadPixels(); out.loadPixels();
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = 4 * (y * w + x);
-      const v = grayImg.pixels[i];
-      const dx = x - cx, dy = y - cy;
-      const r = sqrt(dx*dx + dy*dy) / maxR;      // 0 center .. 1 corners
-      const falloff = 1.0 - strength * r*r;      // quadratic falloff
-      const p = floor(constrain(v * falloff, 0, 255));
-      out.pixels[i] = out.pixels[i+1] = out.pixels[i+2] = p;
-      out.pixels[i+3] = 255;
-    }
+function vignette(img, strength = 0.3) {
+  const w = img.width, h = img.height, cx = w / 2, cy = h / 2, maxR = sqrt(cx * cx + cy * cy);
+  const out = createImage(w, h); img.loadPixels(); out.loadPixels();
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = 4 * (y * w + x), r = sqrt((x - cx) ** 2 + (y - cy) ** 2) / maxR;
+    const p = floor(constrain(img.pixels[i] * (1 - strength * r * r), 0, 255));
+    out.pixels[i] = out.pixels[i + 1] = out.pixels[i + 2] = p; out.pixels[i + 3] = 255;
   }
-  out.updatePixels();
-  return out;
+  out.updatePixels(); return out;
 }
-
+function sepia(img) {
+  const out = createImage(img.width, img.height); img.loadPixels(); out.loadPixels();
+  for (let i = 0; i < img.pixels.length; i += 4) {
+    const v = img.pixels[i];
+    out.pixels[i] = constrain(v * 1.07 + 20, 0, 255);
+    out.pixels[i + 1] = constrain(v * 0.95 + 8, 0, 255);
+    out.pixels[i + 2] = constrain(v * 0.78, 0, 255);
+    out.pixels[i + 3] = 255;
+  }
+  out.updatePixels(); return out;
+}

@@ -1,15 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.10/lib/p5.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.10/lib/addons/p5.sound.min.js"></script>
-    <link rel="stylesheet" type="text/css" href="style.css">
-    <meta charset="utf-8" />
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Photobooth · New York, NY</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@500;700;800&family=Special+Elite&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.10/lib/p5.js"></script>
+</head>
+<body>
+  <main class="scene">
+    <p class="street">↑ LOWER EAST SIDE · OPEN LATE · NO RESERVATIONS</p>
 
-  </head>
-  <body>
-    <main>
-    </main>
-    <script src="sketch.js"></script>
-  </body>
+    <div class="booth" id="booth">
+      <!-- sign -->
+      <header class="sign">
+        <div class="bulbs"></div>
+        <h1>PHOTOBOOTH</h1>
+        <div class="sign-row">
+          <span class="b" style="--c:#fccc0a;--t:#111">4</span><span>POSES</span>
+          <span class="dot">·</span>
+          <span>BLACK &amp; WHITE</span>
+          <span class="dot">·</span>
+          <span>NEW YORK, NY</span>
+        </div>
+      </header>
+
+      <div class="cab">
+        <!-- camera -->
+        <section class="face">
+          <div class="lens-frame">
+            <div class="lens" id="lens">
+              <div id="cam"></div>
+              <div class="overlay">
+                <div class="count" id="count"></div>
+                <div class="pose" id="pose">LOOK HERE ↑</div>
+              </div>
+              <div class="flash" id="flash"></div>
+            </div>
+          </div>
+          <div class="frames" id="frames"><i></i><i></i><i></i><i></i></div>
+
+          <div class="controls">
+            <ol class="steps">
+              <li><span class="b" style="--c:#ee352e">1</span>Sit down</li>
+              <li><span class="b" style="--c:#0039a6">2</span>Press the button</li>
+              <li><span class="b" style="--c:#00933c">3</span>Strike 4 poses</li>
+              <li><span class="b" style="--c:#ff6319">4</span>Grab your strip</li>
+            </ol>
+            <div class="right">
+              <button class="go" id="go" aria-label="Start the photobooth"><span>PUSH</span></button>
+              <div class="toggle" role="radiogroup" aria-label="Film">
+                <button data-film="bw" aria-pressed="true">B&amp;W</button>
+                <button data-film="sepia" aria-pressed="false">SEPIA</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- curtain side -->
+        <section class="side">
+          <div class="rod"></div>
+          <div class="curtain" id="curtain"></div>
+          <div class="sticker s1">SMILE,<br>YOU’RE IN<br>NEW YORK</div>
+          <div class="chute">
+            <span>PHOTOS</span>
+            <div class="slot"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- the strip comes out of the slot -->
+      <div class="tray" id="tray">
+        <div class="strip" id="strip"><img id="stripImg" alt="Your photobooth strip"></div>
+      </div>
+    </div>
+
+    <div class="after" id="after">
+      <button id="save">↓ Save strip</button>
+      <button id="again">↻ One more</button>
+    </div>
+    <p class="fine">Press S to start · R to reset · P to save</p>
+  </main>
+
+  <script src="sketch.js"></script>
+</body>
 </html>
